@@ -1,0 +1,20 @@
+default:
+  spark_master: yarn
+  enrichments:
+    all: gs://ot-team/irene/stop_reasons/predictions_aggregations_all/
+    non_oncology: gs://ot-team/irene/stop_reasons/predictions_aggregations_non_oncology
+    oncology: gs://ot-team/irene/stop_reasons/predictions_aggregations_oncology
+  permuted_enrichments_template: gs://ot-team/irene/stop_reasons/baseline_predictions_aggregations_08092023
+  stop_vs_phase_enrichments_template: gs://ot-team/irene/stop_reasons/reason_vs_phase_aggregations
+  input:
+    # gcp
+    disease_path: gs://open-targets-data-releases/22.04/output/etl/parquet/diseases/
+    evidence_path: gs://open-targets-data-releases/22.04/output/etl/parquet/evidence/
+    target_path: gs://open-targets-data-releases/22.04/output/etl/parquet/targets/
+    interactions_path: gs://open-targets-data-releases/22.04/output/etl/parquet/interaction
+    hpa_path: gs://ot-team/dochoa/proteinatlas.json.gz
+    # static
+    predictions_freeze_path: gs://ot-team/dochoa/stop_reasons/stopped_predictions_formatted_30_09_22.csv
+    pak_wvectors: data/wvectors.csv
+    pak_class_frequencies: data/frequencies.csv
+    classes_lut: data/classes.csv

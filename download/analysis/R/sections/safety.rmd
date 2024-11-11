@@ -1,0 +1,465 @@
+
+## Studies stopped because of safety
+
+### Safety by Therapeutic area
+
+```{r, safety_byTA, cache = TRUE}
+p_safety_by_ta <- all_tests %>%
+    filter(predictionType == "metareason") %>%
+    filter(prediction == "Safety_Sideeffects") %>%
+    # filter(predictionType %in% c("reason", "clinical", "stopStatus")) %>%
+    filter(comparisonType == "ta") %>%
+    mutate(comparison = fct_reorder(comparison, estimate, median)) %>%
+    ggplot(aes(x = comparison, y = estimate)) +
+    geom_hline(aes(yintercept = 1),
+        size = .25,
+        linetype = "dashed"
+    ) +
+    geom_errorbar(aes(ymin = conf.low, ymax = conf.high),
+        width = 0
+    ) +
+    geom_point() +
+    scale_y_log10(name = "Odds Ratio") +
+    coord_flip() +
+    facet_grid(. ~ prediction) +
+    theme_cowplot(font_size = 12) +
+    panel_border(color = "black") +
+    theme(
+        axis.title.y = element_blank()
+    )
+p_safety_by_ta
+```
+
+```{r, safety_main, cache = TRUE}
+prepare_safety_data <- function(tests) {
+    tests %>%
+        filter(predictionType == "metareason") %>%
+        filter(prediction == "Safety_Sideeffects") %>%
+        filter(comparisonType %in% c(
+            "ta",
+            "geneticConstraint",
+            "rnaSpecificity",
+            "lof_tolerance",
+            "interactions"
+        )) %>%
+        filter(comparison != "Not detected") %>%
+        mutate(comparison = fct_reorder(comparison, estimate)) %>%
+        mutate(comparison = fct_relevel(
+            comparison,
+            "Tissue enriched",
+            "Group enriched",
+            "Tissue enhanced",
+            "Low tissue specificity"
+        )) %>%
+        mutate(comparison = fct_relevel(
+            comparison,
+            "greaterThan20",
+            after = Inf
+        )) %>%
+        mutate(comparison = fct_recode(comparison,
+            "Very high" = "0",
+            "High" = "1",
+            "Medium" = "2",
+            "Low" = "3",
+            "Very low" = "4",
+            "Lowest" = "5"
+        )) %>%
+        mutate(comparison = fct_recode(comparison,
+            ">20 partners" = "greaterThan20",
+            "11-20 partners" = "from11to20",
+            "1-10 partners" = "from1to10",
+            "None reported" = "none"
+        )) %>%
+        mutate(comparison = fct_recode(comparison,
+            "Intolerant (pLI > 0.9)" = "LoF intolerant",
+            "Tolerant (pLI < 0.1)" = "LoF tolerant"
+        )) %>%
+        mutate(comparisonType = fct_recode(
+            comparisonType,
+            "LoF" = "lof_tolerance",
+            "Interacting proteins" = "interactions",
+            "RNA specificity" = "rnaSpecificity",
+            "Indication" = "ta",
+            "Genetic Constraint (LOEUF bin)" = "geneticConstraint"
+        )) %>%
+        mutate(comparisonType = fct_rev(
+            fct_reorder(comparisonType, estimate, max, na.rm = TRUE)
+        )) %>%
+        mutate(comparisonType = fct_relevel(
+            comparisonType, "Interacting proteins",
+            after = Inf
+        )) %>%
+        mutate(oddsinterval = paste(round(estimate, digits = 3),
+            " (",
+            round(conf.low, digits = 2),
+            "-",
+            round(conf.high, digits = 2),
+            ")",
+            sep = ""
+        )) %>%
+        mutate(significance = format_pval(p.value))
+}
+
+plot_safety_dots <- function(toplot_data) {
+    toplot_data %>%
+        ggplot(aes(x = comparison, y = estimate)) +
+        geom_hline(aes(yintercept = 1),
+            size = .25,
+            linetype = "dashed"
+        ) +
+        geom_errorbar(aes(ymin = conf.low, ymax = conf.high),
+            width = 0, color = "steelblue", size = 1
+        ) +
+        geom_point(color = "steelblue", size = 3) +
+        scale_y_log10(name = "Odds Ratio", position = "right") +
+        scale_x_discrete(labels = function(x) {
+            stringr::str_wrap(x, width = 25)
+        }) +
+        coord_flip() +
+        facet_grid(comparisonType ~ .,
+            scale = "free_y",
+            space = "free_y",
+            switch = "y"
+        ) +
+        theme_cowplot(font_size = 12) +
+        panel_border(color = "black") +
+        theme(
+            axis.title.y = element_blank(),
+            axis.line = element_blank(),
+            panel.spacing = unit(-0.1, "lines"),
+            strip.placement = "outside",
+            strip.background = element_blank(),
+            strip.switch.pad.grid = unit(20, "pt")
+        )
+}
+
+plot_safety_numbers <- function(toplot_data) {
+    toplot_data %>%
+        mutate(a = formatC(a, format = "d", big.mark = ",")) %>%
+        select(
+            comparison,
+            comparisonType,
+            prediction,
+            a,
+            oddsinterval,
+            significance
+        ) %>%
+        gather(key, value, -comparison, -comparisonType, -prediction) %>%
+        mutate(key = fct_recode(key,
+            "n" = "a",
+            "OR (95% CI)" = "oddsinterval",
+            "P-value" = "significance"
+        )) %>%
+        ggplot(aes(x = comparison, y = key)) +
+        # geom_tile(fill = NA, color = "black") +
+        geom_tile(fill = NA) +
+        geom_text(aes(label = value)) +
+        scale_x_discrete(labels = function(x) stringr::str_wrap(x, width = 25)) +
+        scale_y_discrete(expand = c(0, 0), position = "right") +
+        coord_flip() +
+        facet_grid(comparisonType ~ .,
+            scale = "free_y",
+            space = "free_y"
+        ) +
+        theme_cowplot(font_size = 12) +
+        panel_border(color = "black") +
+        theme(
+            axis.ticks = element_blank(),
+            axis.title = element_blank(),
+            axis.text.y = element_blank(),
+            panel.spacing = unit(-0.1, "lines"),
+            strip.background = element_blank(),
+            axis.line = element_blank(),
+            strip.text.y = element_blank()
+        )
+}
+
+toplot_safety_data <- prepare_safety_data(all_tests)
+p_safety_main_dots <- plot_safety_dots(toplot_safety_data)
+p_safety_main_numbers <- plot_safety_numbers(toplot_safety_data)
+
+p_safety_main <- plot_grid(
+    p_safety_main_dots +
+        theme(plot.margin = margin(
+            t = 5.5, b = 5.5, l = 5.5, r = -4, unit = "pt"
+        )),
+    p_safety_main_numbers +
+        theme(plot.margin = margin(
+            t = 5.5, b = 5.5, l = 0, r = 5.5, unit = "pt"
+        )),
+    rel_widths = c(1, 0.65),
+    align = "h",
+    axis = "t",
+    nrow = 1,
+    ncol = 2
+)
+p_safety_main
+```
+
+### Safety by somatic T-D evidence
+
+```{r, safety_by_cancer_datasource, cache = TRUE}
+cancer_ds <- c("cancer_gene_census", "intogen", "eva_somatic")
+p_safety_by_cancer_datasource <- all_tests %>%
+    filter(prediction != "Success") %>%
+    filter(predictionType %in% c("metareason", "clinical", "stopStatus")) %>%
+    filter(comparison %in% cancer_ds) %>%
+    filter(comparisonType == "byDatasource") %>%
+    mutate(predictionType = fct_relevel(
+        predictionType,
+        "clinical", "stopStatus", "metareason"
+    )) %>%
+    mutate(predictionType = fct_recode(
+        predictionType,
+        "All studies" = "clinical",
+        "Stopped studies" = "stopStatus",
+        "Reason implication" = "metareason"
+    )) %>%
+    mutate(prediction = fct_recode(prediction,
+        "Suspicious" = "Business_Administrative",
+        "Invalid" = "Invalid_Reason",
+        "Safety" = "Safety_Sideeffects",
+        "Negative" = "Negative",
+        "Neutral" = "Neutral"
+    )) %>%
+    mutate(prediction = fct_reorder(prediction, estimate, median)) %>%
+    mutate(prediction = fct_relevel(prediction, "Phase III+", after = Inf)) %>%
+    mutate(prediction = fct_relevel(prediction, "Phase IV", after = Inf)) %>%
+    mutate(comparison = fct_recode(
+        comparison,
+        "ClinVar (Somatic)" = "eva_somatic",
+        "IntOgen" = "intogen",
+        "COSMIC (CGC)" = "cancer_gene_census"
+    )) %>%
+    ggplot(aes(x = prediction, y = estimate)) +
+    geom_hline(aes(yintercept = 1),
+        size = .25,
+        linetype = "dashed"
+    ) +
+    geom_errorbar(aes(ymin = conf.low, ymax = conf.high),
+        width = 0
+    ) +
+    geom_point() +
+    scale_y_log10(name = "Odds Ratio") +
+    coord_flip() +
+    facet_grid(
+        predictionType ~ comparison,
+        scales = "free_y",
+        space = "free_y"
+    ) +
+    theme_cowplot(font_size = 12) +
+    panel_border(color = "black") +
+    theme(
+        axis.title.y = element_blank(),
+        strip.background = element_rect(fill = NA),
+        panel.grid.major.y = element_blank()
+    )
+p_safety_by_cancer_datasource
+```
+
+### Safety by target genetic constraint
+
+```{r, safety_by_genetic_constrain, cache = TRUE}
+p_safety_by_genetic_constrain <- all_tests %>%
+    filter(comparisonType == "geneticConstraint") %>%
+    filter(predictionType == "metareason") %>%
+    filter(prediction == "Safety_Sideeffects") %>%
+    ggplot(aes(
+        x = comparison,
+        y = estimate,
+        color = prediction
+    )) +
+    geom_hline(aes(yintercept = 1),
+        size = .25,
+        linetype = "dashed"
+    ) +
+    geom_errorbar(aes(ymin = conf.low, ymax = conf.high),
+        width = 0
+    ) +
+    geom_point() +
+    scale_color_discrete(name = "Study stop reason") +
+    scale_y_log10(name = "Odds Ratio") +
+    scale_x_discrete(name = "pLOEUF target genetic constraint bin (GnomAD)") +
+    theme_cowplot(font_size = 12) +
+    panel_border(color = "black") +
+    theme(
+        legend.position = c(0.95, 0.95),
+        legend.justification = c(1, 1),
+    )
+p_safety_by_genetic_constrain
+```
+
+### RNA specificity
+
+- Tissue Enriched: Genes with an expression level greater than 1 (TPM or FPKM) that also have at least five-fold higher expression levels in a particular tissue compared to all other tissues.
+- Group Enriched: Genes with an expression level greater than 1 (TPM or FPKM) that also have at least five-fold higher expression levels in a group of 2-7 tissues compared to all other tissues, and that are not considered Tissue Enriched.
+- Tissue Enhanced: Genes with an expression level greater than 1 (TPM or FPKM) that also have at least five-fold higher expression levels in a particular tissue compared to the average levels in all other tissues, and that are not considered Tissue Enriched or Group Enriched.
+
+```{r, safety_rna_specificity, cache = TRUE}
+p_safety_rna_specificity <- all_tests %>%
+    filter(predictionType == "metareason") %>%
+    filter(prediction == "Safety_Sideeffects") %>%
+    filter(comparisonType == "rnaSpecificity") %>%
+    filter(comparison != "Not detected") %>%
+    mutate(comparison = fct_relevel(
+        comparison,
+        "Low tissue specificity",
+        "Tissue enhanced",
+        "Group enriched",
+        "Tissue enriched"
+    )) %>%
+    ggplot(aes(
+        x = comparison,
+        y = estimate,
+        color = prediction
+    )) +
+    geom_hline(aes(yintercept = 1),
+        size = .25,
+        linetype = "dashed"
+    ) +
+    geom_errorbar(aes(ymin = conf.low, ymax = conf.high),
+        width = 0
+    ) +
+    geom_point() +
+    scale_color_discrete(name = "Study stop reason") +
+    scale_y_log10(name = "Odds Ratio") +
+    scale_x_discrete(name = "RNA tissue specificity") +
+    theme_cowplot(font_size = 12) +
+    panel_border(color = "black") +
+    theme(
+        legend.position = c(0.95, 0.95),
+        legend.justification = c(1, 1),
+    )
+p_safety_rna_specificity
+```
+
+## All vs oncology vs non-oncology
+
+```{r, safety_all_vs_oncology, cache = TRUE}
+# p_safety_by_indication <- prepare_safety_data(indication_filtered_tests) %>%
+#     filter(comparisonType != "Indication") %>%
+#     ggplot(aes(x = comparison, y = estimate)) +
+#     geom_hline(aes(yintercept = 1),
+#         linewidth = .25,
+#         linetype = "dashed"
+#     ) +
+#     geom_errorbar(
+#         aes(
+#             ymin = conf.low,
+#             ymax = conf.high,
+#             color = indication_class
+#         ),
+#         position = position_dodge(width = 0.8),
+#         width = 0,
+#         size = 1
+#     ) +
+#     geom_point(aes(color = indication_class),
+#         size = 3,
+#         position = position_dodge(width = 0.8)
+#     ) +
+#     scale_y_log10(name = "Odds Ratio", position = "right") +
+#     scale_x_discrete(labels = function(x) {
+#         stringr::str_wrap(x, width = 25)
+#     }) +
+#     coord_flip() +
+#     facet_grid(comparisonType ~ .,
+#         scale = "free_y",
+#         space = "free_y",
+#         switch = "y"
+#     ) +
+#     theme_cowplot(font_size = 12) +
+#     scale_color_brewer(palette = "Set1", name = "Indication") +
+#     panel_border(color = "black") +
+#     theme(
+#         axis.title.y = element_blank(),
+#         axis.line = element_blank(),
+#         panel.spacing = unit(-0.1, "lines"),
+#         strip.placement = "outside",
+#         strip.background = element_blank(),
+#         strip.switch.pad.grid = unit(20, "pt"),
+#         legend.position = c(0.05, 0.95),
+#     )
+# p_safety_by_indication
+
+toplot_safety_data_byindication <- prepare_safety_data(indication_filtered_tests) %>% filter(comparisonType != "Indication")
+
+p_safety_allindications <- plot_grid(
+    plot_safety_dots(toplot_safety_data_byindication %>% filter(indication_class == "All indications"))
+    + ggtitle("All indications")
+        + scale_x_discrete(labels = function(x) {
+            stringr::str_wrap(x, width = 12)
+        })
+        + theme(plot.margin = margin(
+            t = 5.5, b = 5.5, l = 5.5, r = -4, unit = "pt"
+        )),
+    plot_safety_numbers(toplot_safety_data_byindication %>% filter(indication_class == "All indications")) +
+        theme(plot.margin = margin(
+            t = 5.5, b = 5.5, l = 0, r = -4, unit = "pt"
+        )),
+    rel_widths = c(1, 0.9),
+    align = "h",
+    axis = "t",
+    nrow = 1,
+    ncol = 2
+)
+p_safety_onco <- plot_grid(
+    plot_safety_dots(toplot_safety_data_byindication %>% filter(indication_class == "Oncology")) +
+        ggtitle("Oncolology") +
+        theme(
+            plot.margin = margin(
+                t = 5.5, b = 5.5, l = 0, r = -4, unit = "pt"
+            ),
+            axis.ticks = element_blank(),
+            axis.title.y = element_blank(),
+            axis.text.y = element_blank(),
+            panel.spacing = unit(-0.1, "lines"),
+            strip.background = element_blank(),
+            axis.line = element_blank(),
+            strip.text.y = element_blank()
+        ),
+    plot_safety_numbers(toplot_safety_data_byindication %>% filter(indication_class == "Oncology")) +
+        theme(plot.margin = margin(
+            t = 5.5, b = 5.5, l = 0, r = -4, unit = "pt"
+        )),
+    rel_widths = c(1, 1.12),
+    align = "h",
+    axis = "t",
+    nrow = 1,
+    ncol = 2
+)
+p_safety_nononco <- plot_grid(
+    plot_safety_dots(toplot_safety_data_byindication %>% filter(indication_class == "Non-oncology")) +
+        ggtitle("Non-oncolology") +
+        theme(
+            plot.margin = margin(
+                t = 5.5, b = 5.5, l = 0, r = -4, unit = "pt"
+            ),
+            axis.ticks = element_blank(),
+            axis.title.y = element_blank(),
+            axis.text.y = element_blank(),
+            panel.spacing = unit(-0.1, "lines"),
+            strip.background = element_blank(),
+            axis.line = element_blank(),
+            strip.text.y = element_blank()
+        ),
+    plot_safety_numbers(toplot_safety_data_byindication %>% filter(indication_class == "Non-oncology")) +
+        theme(plot.margin = margin(
+            t = 5.5, b = 5.5, l = 0, r = 5.5, unit = "pt"
+        )),
+    rel_widths = c(1, 1.12),
+    align = "h",
+    axis = "t",
+    nrow = 1,
+    ncol = 2
+)
+
+p_safety_byindication <- plot_grid(
+    p_safety_allindications + ggtitle("test"),
+    p_safety_onco,
+    p_safety_nononco,
+    rel_widths = c(1, 0.83, 0.83),
+    nrow = 1
+)
+
+p_safety_byindication
+```

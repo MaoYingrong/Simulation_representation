@@ -1,0 +1,15 @@
+.DS_Store
+stop_reasons_classifier/models
+stop_reasons_classifier/data
+stop_reasons_classifier/env
+stop_reasons_classifier/dist
+__pycache__
+derby.log
+.vscode/dryrun.log
+.vscode/targets.log
+.vscode/configurationCache.log
+temp
+data/baseline_predictions_aggregations
+data/predictions_aggregations_*
+data/chembl*
+reports/*

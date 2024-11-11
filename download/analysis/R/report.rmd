@@ -1,0 +1,55 @@
+---
+title: "Study stop reasons"
+date: "`r format(Sys.time(), '%d %B, %Y')`"
+output:
+  html_document:
+    code_folding: hide
+    toc: true
+---
+
+# Clinical trial stop reason interpretation
+
+```{r, knitSetup, include=FALSE}
+# knitr::opts_knit$set(root.dir = cachePath)
+knitr::opts_chunk$set(cache.path = cache_dir)
+## quiets concerns of R CMD check re: the .'s that appear in pipelines
+if (getRversion() >= "2.15.1") utils::globalVariables(c("."))
+```
+
+```{r, Rsetup, include = FALSE}
+library("lintr")
+library("dplyr")
+library("forcats")
+library("stringr")
+library("tidyr")
+library("readr")
+library("broom")
+library("scales")
+library("sparklyr")
+library("sparklyr.nested")
+library("lubridate")
+library("ggplot2")
+library("ggsci")
+library("cowplot")
+```
+
+```{r, configuration, include = FALSE}
+cfg <- config::get(file = config_path)
+```
+
+```{r, SparkConnection, include = FALSE}
+# spark connect
+sc <- spark_connect(master = cfg$spark_master)
+```
+
+```{r, child = 'analysis/R/sections/sentenceSimilarities.rmd'}
+```
+
+```{r, child = 'analysis/R/sections/predictions.rmd'}
+```
+
+```{r, child = 'analysis/R/sections/efficacy.rmd'}
+```
+
+```{r, child = 'analysis/R/sections/safety.rmd'}
+```
